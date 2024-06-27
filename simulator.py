@@ -21,7 +21,7 @@ def pause_plot():
     end_time = interval * (csv_data_len - NP)
 
     init_x = 0  # X coordinate of the center of the rear wheel shaft
-    init_y = 1  # Y coordinate of the center of the rear wheel shaft
+    init_y = 0  # Y coordinate of the center of the rear wheel shaft
     init_v = 10  # velocity of the center of the rear wheel shaft
     init_yaw = 0.125
     x0 = np.array([init_x, init_y, init_v, init_yaw]).T.reshape(4, -1)
@@ -71,13 +71,9 @@ def pause_plot():
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_xlim([-5, 50])
-    ax.set_ylim([-5, 50])
+    ax.set_ylim([-30, 30])
     ax.set(aspect=1)
     ax.plot(x_refs, y_refs, color="orange") # plot referential trajectory
-
-    rad2deg = 180 / math.pi
-    deg2rad = math.pi / 180
-    kph2mps = 1000 / 3600
 
     point, = ax.plot(init_x, init_y, "bo")
 
@@ -103,9 +99,6 @@ def pause_plot():
 
     itr = 0
     while time < end_time:
-        # yaw = yaw + v * math.tan(steer) * interval
-        # x = x + v * math.cos(yaw) * interval
-        # y = y + v * math.sin(yaw) * interval
         print('\ntime = ' + f'{time:.1f}')
 
         Y_ref = Y_ref_list[itr]
@@ -237,7 +230,7 @@ def pause_plot():
                         body_center[1] + width / 2 * math.cos(yaw) + length / 2 * math.sin(yaw), \
                             body_center[1] + width / 2 * math.cos(yaw) - length / 2 * math.sin(yaw)]
 
-        ax.set_title('time = ' + f'{time:.1f}')
+        ax.set_title('NP=' + str(NP) + ' Q=' + str(gain_Q) + ' R=' + str(gain_R) + ' time = ' + f'{time:.1f}')
         point.set_data(x1[0], x1[1])
         lines.set_data(body_x, body_y)
 
@@ -249,7 +242,7 @@ def pause_plot():
         time = time + interval
         itr = itr + 1
         x0 = x1
-    fig.savefig('traj_Q' + str(gain_Q) + '_R' + str(gain_R) + '.png')
+    fig.savefig('traj_NP' + str(NP) + '_Q' + str(gain_Q) + '_R' + str(gain_R) + '.png')
 
 if __name__ == "__main__":
     pause_plot()
