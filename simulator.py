@@ -6,24 +6,21 @@ import csv
 
 def pause_plot():
     ## const
-    csv_data_len = 51
     velocity = 10.0
-    NP = 3 # prection horizon
+    NP = 6 # prection horizon
     print("NP:", NP)
+    state_dim = 4 # dimension of xt
     control_dim = 2 # dimension of ut
-    gain_Q = 1
-    gain_R = 50
-    print("gain_Q:", gain_Q)
-    print("gain_R:", gain_R)
-
-    interval = 0.1
-    time = 0
-    end_time = interval * (csv_data_len - NP)
+    gain_Q_xy = 0.01
+    gain_Q_v = 1
+    gain_Q_yaw = 10000
+    gain_R_accl = 1
+    gain_R_yawrate = 1
 
     init_x = 0  # X coordinate of the center of the rear wheel shaft
     init_y = 0  # Y coordinate of the center of the rear wheel shaft
     init_v = 10  # velocity of the center of the rear wheel shaft
-    init_yaw = 0.125
+    init_yaw = 0
     x0 = np.array([init_x, init_y, init_v, init_yaw]).T.reshape(4, -1)
     wheelbase = 2.8
     length = 4.985
@@ -33,34 +30,37 @@ def pause_plot():
     t_refs = []
     x_refs = []
     y_refs = []
-    v_refs = [velocity] * csv_data_len
-    theta_refs = []
+    
+    yaw_refs = []
 
     ## read sample trajectory
-    with open('./ref_traj_sample1.csv') as f:
+    with open('./ref_traj_jagged3.csv') as f:
         reader = csv.reader(f)
         for i, row in enumerate(reader):
             if i > 0:
                 t_refs.append(float(row[0]))
                 x_refs.append(float(row[1]))
                 y_refs.append(float(row[2]))
-                theta_refs.append(float(row[3]))
+                yaw_refs.append(float(row[3]))
+
+    csv_data_len = len(t_refs)
 
     t_refs = np.array(t_refs)
     x_refs = np.array(x_refs)
     y_refs = np.array(y_refs)
+    v_refs = [velocity] * csv_data_len
     v_refs = np.array(v_refs)
-    theta_refs = np.array(theta_refs)
+    yaw_refs = np.array(yaw_refs)
 
     Y_ref_list = []
-    for x, y, v, theta in zip(x_refs, y_refs, v_refs, theta_refs):
-        Y_ref_list.append(np.array([x, y, v, theta]))
+    for x, y, v, yaw in zip(x_refs, y_refs, v_refs, yaw_refs):
+        Y_ref_list.append(np.array([x, y, v, yaw]))
 
     ## read output reference
     accl_refs = []
     yawrate_refs = []
 
-    with open('./ref_output.csv') as f_o:
+    with open('./ref_output_jagged3.csv') as f_o:
         reader_o = csv.reader(f_o)
         for i, row in enumerate(reader_o):
             if i > 0:
@@ -71,7 +71,7 @@ def pause_plot():
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_xlim([-5, 50])
-    ax.set_ylim([-30, 30])
+    ax.set_ylim([-5, 30])
     ax.set(aspect=1)
     ax.plot(x_refs, y_refs, color="orange") # plot referential trajectory
 
@@ -97,6 +97,10 @@ def pause_plot():
     traj_y = np.array([init_y])
     traj_pts, = ax.plot(traj_x, traj_y, "b")
 
+    interval = 0.1
+    time = 0
+    end_time = interval * (csv_data_len - NP)
+
     itr = 0
     while time < end_time:
         print('\ntime = ' + f'{time:.1f}')
@@ -114,12 +118,12 @@ def pause_plot():
             t_r = t_refs[i]
             x_r = x_refs[i]
             y_r = y_refs[i]
-            theta_r = theta_refs[i]
+            yaw_r = yaw_refs[i]
             v_r = v_refs[i]
             dt = t_refs[1] - t_refs[0]
             
-            Ak = np.array([[1, 0, math.cos(theta_r) * dt, -v_r * math.sin(theta_r) * dt],
-                        [0, 1, math.sin(theta_r) * dt, -v_r * math.cos(theta_r) * dt],
+            Ak = np.array([[1, 0, math.cos(yaw_r) * dt, -v_r * math.sin(yaw_r) * dt],
+                        [0, 1, math.sin(yaw_r) * dt, v_r * math.cos(yaw_r) * dt],
                         [0, 0, 1, 0],
                         [0, 0, 0, 1]])
             
@@ -132,8 +136,8 @@ def pause_plot():
             
             Bk_list.append(Bk)
             
-            Wk = np.array([[-v_r * math.cos(theta_r) + v_r * math.sin(theta_r) * theta_r],
-                        [-v_r * math.sin(theta_r) - v_r * math.cos(theta_r) * theta_r],
+            Wk = np.array([[-v_r * math.cos(yaw_r) + v_r * math.sin(yaw_r) * yaw_r],
+                        [-v_r * math.sin(yaw_r) - v_r * math.cos(yaw_r) * yaw_r],
                         [0],
                         [0],
                         ])
@@ -192,14 +196,27 @@ def pause_plot():
         print("X0:", np.ravel(x0))
         H = np.eye(NP)
         C = np.eye(F_mat.shape[0])
-        Q = np.eye(F_mat.shape[0]) * gain_Q
+        Q = np.zeros((state_dim * NP, state_dim * NP))
+        for i in range(0, state_dim * NP):
+            if i % state_dim == 0 or i % state_dim == 1:
+                Q[i][i] = gain_Q_xy
+            elif i % state_dim == 2:
+                Q[i][i] = gain_Q_v
+            else:
+                Q[i][i] = gain_Q_yaw
 
         output_ref = []
         for i in range(itr, itr + NP):
             output_ref.append(accl_refs[i])
             output_ref.append(yawrate_refs[i])
         U_ref = np.array(output_ref)
-        R = np.eye(U_ref.shape[0]) * gain_R
+        U_ref = np.zeros(control_dim * NP).reshape(control_dim * NP, -1)
+        R = np.zeros((control_dim * NP, control_dim * NP))
+        for i in range(0, control_dim * NP):
+            if i % control_dim == 0:
+                R[i][i] = gain_R_accl
+            else:
+                R[i][i] = gain_R_yawrate
 
         ## M, N, U
         M = ((C @ G_mat).T) @ Q @ C @ G_mat + R
@@ -230,7 +247,7 @@ def pause_plot():
                         body_center[1] + width / 2 * math.cos(yaw) + length / 2 * math.sin(yaw), \
                             body_center[1] + width / 2 * math.cos(yaw) - length / 2 * math.sin(yaw)]
 
-        ax.set_title('NP=' + str(NP) + ' Q=' + str(gain_Q) + ' R=' + str(gain_R) + ' time = ' + f'{time:.1f}')
+        ax.set_title('NP=' + str(NP) + ' Q_xy=' + str(gain_Q_xy) + ' Q_v=' + str(gain_Q_v) + ' Q_yaw=' + str(gain_Q_yaw) + ' R_accl=' + str(gain_R_accl) + ' R_yawrate=' + str(gain_R_yawrate) + ' time = ' + f'{time:.1f}')
         point.set_data(x1[0], x1[1])
         lines.set_data(body_x, body_y)
 
@@ -242,7 +259,7 @@ def pause_plot():
         time = time + interval
         itr = itr + 1
         x0 = x1
-    fig.savefig('traj_NP' + str(NP) + '_Q' + str(gain_Q) + '_R' + str(gain_R) + '.png')
+    fig.savefig('NP=' + str(NP) + ' Q_xy=' + str(gain_Q_xy) + ' Q_v=' + str(gain_Q_v) + ' Q_yaw=' + str(gain_Q_yaw) + ' R_accl=' + str(gain_R_accl) + ' R_yawrate=' + str(gain_R_yawrate) + '.png')
 
 if __name__ == "__main__":
     pause_plot()

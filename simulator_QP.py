@@ -13,16 +13,16 @@ def pause_plot():
     state_dim = 4 # dimension of xt
     control_dim = 2 # dimension of ut
     gain_Q_x = 1
-    gain_Q_y = 150
-    gain_Q_v = 10000
-    gain_Q_yaw = 10000
+    gain_Q_y = 1
+    gain_Q_v = 100
+    gain_Q_yaw = 100
     gain_R_accl = 1
     gain_R_yawrate = 1
 
     init_x = 0  # X coordinate of the center of the rear wheel shaft
     init_y = 0  # Y coordinate of the center of the rear wheel shaft
     init_v = velocity  # velocity of the center of the rear wheel shaft
-    init_yaw = 0
+    init_yaw = math.pi / 64
     x0 = np.array([init_x, init_y, init_v, init_yaw]).T.reshape(4, -1)
     wheelbase = 2.8
     length = 4.985
@@ -131,7 +131,7 @@ def pause_plot():
             dt = t_refs[1] - t_refs[0]
             
             Ak = np.array([[1, 0, math.cos(yaw_r) * dt, -v_r * math.sin(yaw_r) * dt],
-                        [0, 1, math.sin(yaw_r) * dt, -v_r * math.cos(yaw_r) * dt],
+                        [0, 1, math.sin(yaw_r) * dt, v_r * math.cos(yaw_r) * dt],
                         [0, 0, 1, 0],
                         [0, 0, 0, 1]])
             
